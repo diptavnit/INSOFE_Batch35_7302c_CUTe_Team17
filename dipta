@@ -1,0 +1,198 @@
+---
+title: "Building the stock market prediction Engine"
+author: "Building the stock market prediction Engine "
+date: "17 December 2017"
+---
+
+```{r}
+rm(list = ls(all=TRUE))
+
+``` 
+
+
+```{r label, options}
+
+getwd()
+setwd("F:\\Insofe\\Labs\\Cutes\\Datasets")
+# Data Preprocessing Reading From file and descriptive statistics
+stock_data<- read.csv("train_data.csv")
+str(stock_data)
+summary(stock_data)
+head(stock_data)
+sort(colSums(is.na(stock_data)),decreasing = T)
+nrow(stock_data)
+#TODO function  to validate and drop more than 3%
+dropcolumns<- c("f_1","f_6","f_26","f_38","f_57","f_61","f_63","f_27","f_3","f_28","f_31","f_35",  "f_17","f_25","f_47","t_28","t_44","t_25","t_31","t_5","t_1","y1")
+stock_data<- stock_data[, !names(stock_data) %in% dropcolumns]
+ncol(stock_data)
+
+stock_data$y2= as.factor(as.character(stock_data$y2))
+
+
+```   
+
+```{r label, options}
+
+library(caret)
+
+set.seed(786)
+
+# The argument "y" to the createDataPartition() function is the response variable
+
+# The argument "p" is the percentage of data that goes to training
+
+# The argument "list" should be input a boolean (T or F). Remember to put list = F, else the output is going to  be a list and your data can't be subsetted with it
+
+train_rows <- createDataPartition(stock_data$y2, p = 0.7, list = F)
+
+train_data <- stock_data[train_rows, ]
+
+test_data <- stock_data[-train_rows, ]
+
+```
+
+
+```{r label, options}
+## Missing Values imputation
+
+library(caret)
+imputer_values <- preProcess(x = stock_data, method = "knnImpute")
+
+?predict
+
+train_data[, !names(train_data) %in% c("y2")] <- predict(object=imputer_values,newdata=train_data[,!names(train_data) %in% c("y2")])
+
+test_data[, !names(train_data) %in% c("y2")] <- predict(object=imputer_values,newdata=test_data[,!names(train_data) %in% c("y2")])
+
+
+```
+```{r label, options}
+
+# scaling traing input data and  not standardize the target variable
+
+std_model <- preProcess(train_data[, !names(train_data) %in% c("y2")], method = c("center", "scale"))
+
+# The predict() function is used to standardize any other unseen data
+
+train_data[, !names(train_data) %in% c("y2")] <- predict(object = std_model, newdata = train_data[, !names(train_data) %in% c("y2")])
+
+test_data[, !names(train_data) %in% c("y2")] <- predict(object = std_model, newdata = test_data[, !names(train_data) %in% c("y2")])
+
+```
+```{r label, options}
+
+# Creating logistic regression model 
+
+#unique(train_data$y2)
+
+log_reg <- glm(y2~., data = train_data, family = binomial)
+
+summary(log_reg)
+
+```
+```{r label, options}
+
+# Creating an ROC plot
+#steps to create an ROC plot :__
+#1) Get a list of predictions (probability scores) using the predict() function
+# Use the argument 'type = "response"' in the predict function to get a list of predictions between 0 and 1# By default if no dataset is mentioned, training data is used
+
+prob_train <- predict(log_reg, type = "response")
+
+#2) Using the ROCR package create a "prediction()" object
+
+library(ROCR)
+
+#The prediction object takes the probability scores and the original levels for theses data as input
+
+pred <- prediction(prob_train, train_data$y2)
+
+
+#3) Extract performance measures (True Positive Rate and False Positive Rate) using the "performance()" function from the ROCR package
+
+perf <- performance(pred, measure="tpr", x.measure="fpr")
+
+#4)Plot the ROC curve using the extracted performance measures (TPR and FPR)
+
+plot(perf, col=rainbow(10), colorize=T, print.cutoffs.at=seq(0,1,0.08))
+
+
+# Creating an ROC plot 
+
+perf_auc <- performance(pred, measure="auc")
+
+# Access the auc score from the performance object
+
+auc <- perf_auc@y.values[[1]]
+
+print(auc)
+
+
+
+```
+```{r label, options}
+
+#Choose a Cutoff Value
+prob_test <- predict(log_reg, test_data, type = "response")
+preds_test <- ifelse(prob_test > 0.96, "yes", "no")
+
+
+```
+
+
+```{r label, options}
+# Evaluation Metrics for classification
+## Manual Computation
+### Confusion Matrix
+
+test_data_labs <- test_data$y
+
+conf_matrix <- table(test_data_labs, preds_test)
+
+print(conf_matrix)
+
+
+sensitivity <- conf_matrix[2, 2]/sum(conf_matrix[2, ])
+print(sensitivity)
+
+specificity <- conf_matrix[1, 1]/sum(conf_matrix[1, ])
+print(specificity)
+
+
+accuracy <- sum(diag(conf_matrix))/sum(conf_matrix)
+print(accuracy)
+
+
+
+# Using the argument "Positive", we can get the evaluation metrics according to our positive referene level
+
+library(caret)
+confusionMatrix(preds_test, test_data$y2, positive = "yes")
+
+?confusionMatrix
+
+
+
+```
+
+```{r label, options}
+
+
+
+
+
+```
+
+
+    
+
+
+    
+
+
+
+
+
+
+
+
