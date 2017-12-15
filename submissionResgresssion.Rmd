@@ -1,0 +1,247 @@
+---
+title: "Building the stock market prediction Engine"
+author: "Building the stock market prediction Engine "
+date: "17 December 2017"
+---
+
+```{r}
+rm(list = ls(all=TRUE))
+
+``` 
+
+
+```{r label, options}
+
+getwd()
+setwd("F:\\Insofe\\Labs\\Cutes\\Datasets")
+
+#Reading From file and descriptive statistics
+stock_data<- read.csv("train_data.csv")
+str(stock_data)
+summary(stock_data)
+head(stock_data)
+sort(colSums(is.na(stock_data)),decreasing = T)
+nrow(stock_data)
+#TODO function  to validate and drop more than 3%
+dropcolumns<- c("f_1","f_6","f_26","f_38","f_57","f_61","f_63","f_27","f_3","f_28","f_31","f_35",  "f_17","f_25","f_47","t_28","t_44","t_25","t_31","t_5","t_1","y2")
+stock_data<- stock_data[, !names(stock_data) %in% dropcolumns]
+ncol(stock_data)
+```   
+```{r fig.height= 30, fig.width = 20}
+par(mfrow = c(1,1))
+## exploratory analysis Scatter Plots and corrplots
+library(corrplot)
+corrplot(cor(stock_data, use = "complete.obs"), method = "number")
+
+``` 
+```{r label, options}
+    
+set.seed(29)
+
+# the "sample()" function helps us to randomly sample 70% of the row indices of the dataset
+
+train_rows <- sample(x = 1:nrow(stock_data), size = 0.7*nrow(stock_data))
+
+# We use the above indices to subset the train and test sets from the data
+
+train_data <- stock_data[train_rows, ]
+
+test_data <- stock_data[-train_rows, ]
+
+```
+```{r label, options}
+## Missing Values imputation
+
+library(caret)
+imputer_values <- preProcess(x = stock_data, method = "knnImpute")
+train_data <- predict(object = imputer_values, newdata = train_data)
+test_data <- predict(object = imputer_values, newdata = test_data)
+
+```
+```{r label, options}
+
+# scaling traing input data and  not standardize the target variable
+
+std_model <- preProcess(train_data[, !names(train_data) %in% c("y1")], method = c("center", "scale"))
+
+# The predict() function is used to standardize any other unseen data
+
+train_data[, !names(train_data) %in% c("y1")] <- predict(object = std_model, newdata = train_data[, !names(train_data) %in% c("y1")])
+
+test_data[, !names(train_data) %in% c("y1")] <- predict(object = std_model, newdata = test_data[, !names(train_data) %in% c("y1")])
+
+```
+```{r label, options}
+
+
+model_basic <- lm(formula = y1~. , data = train_data)
+
+summary(model_basic)
+
+par(mfrow = c(2,2))
+
+plot(model_basic)
+
+```
+```{r label, options}
+
+## stepAIC model
+
+library("MASS")
+
+model_aic <- stepAIC(model_basic, direction = "both")
+
+summary(model_aic)
+
+par(mfrow = c(2,2))
+
+plot(model_aic)
+
+
+```
+```{r label, options}
+
+library(car)
+
+vif(model_basic)
+
+vif(model_aic)
+
+```
+
+
+```{r label, options}
+
+model1 = lm( formula =  y1 ~ timestamp + d_1 + d_4 + f_2 + f_7 + f_10 + 
+    f_11 + f_13 + f_16 + f_18 + f_19 + f_21 + f_22 + f_24 + f_29 + 
+    f_32 + f_34 + f_37 + f_41 + f_42 + f_43 + f_46 + f_48 + f_49 + 
+    f_51 + f_52 + f_56 + f_58 + f_59 + f_62 + t_0 + t_3 + t_6 + 
+    t_9 + t_10 + t_12 + t_16 + t_18 + t_20 + t_21 + t_24 + t_27 + 
+    t_30 + t_32 + t_33 + t_34 + t_35 + t_36 + t_38 + t_40 + t_41 + 
+    f_15 ,data = train_data)
+
+
+summary(model1)
+
+plot(model1)
+
+stepAIC(model1, direction = "both")
+
+
+```
+```{r label, options}
+
+vif(model1)
+
+
+model2<- lm( formula =  y1 ~  d_1 + d_2 + d_3  + f_5 + 
+    + f_8 + f_9  + f_11  + f_13 + 
+    f_16 + f_18   + f_22 + 
+    f_33 + f_37 + f_39 +
+    f_42 + f_43 + f_44  + f_46+ f_52+
+    f_54 + f_58 + f_59 + f_60 + f_62 + 
+    t_3 +t_9+ 
+    t_13  + t_18  + t_20 + t_22 + 
+    t_30 + t_33 + t_35 + t_36 + 
+    t_37  + t_40  + t_42 ,data = train_data)
+
+summary(model2)
+
+plot(model2)
+
+vif(model2)
+
+
+
+``` 
+```{r label, options}
+
+model3<- lm( formula =  y1 ~ f_42 + f_62 + t_9+ t_13  + t_18  + t_20 + t_30 + t_33 + 
+    t_37+ t_42 ,data = train_data)
+
+summary(model3)
+
+plot(model3)
+
+vif(model3)
+
+stepAIC(model3, direction = "both")
+
+model4<- lm( formula =  y1 ~  t_30 + t_33 ,data = train_data)
+summary(model4)
+plot(model4)
+
+```
+```{r label, options}
+#Predicting test by model 
+
+preds_model <- predict(model4, test_data[, !(names(test_data) %in% c("y1"))])
+summary(preds_model)
+
+```
+```{r label, options}
+
+## Performance Metrics
+
+library(DMwR)
+
+regr.eval(train_data$y1, model4$fitted.values)
+
+regr.eval(test_data$y1, preds_model)
+
+
+```
+```{r label, options}
+
+## As test error is higher than train error to avoid over fiiiting due to high variance we will go regsulariastion 
+
+X_train<- as.matrix(train_data[,-1])
+Y_train<- as.matrix(train_data[,1])
+X_test<- as.matrix(test_data[,-1])
+Y_test<- as.matrix(test_data[,1])
+
+library(glmnet)
+
+#lasso Regression
+cv_lasso<- cv.glmnet(X_train,Y_train,alpha=1,type.measure = "mse",nfolds = 4)
+plot(cv_lasso)
+plot(cv_lasso$glmnet.fit,xvar = "lambda",label=TRUE)
+print(cv_lasso$lambda.min)
+coef(cv_lasso)
+lasso_model <- glmnet(X_train, Y_train, lambda = cv_lasso$lambda.min, alpha = 1)
+coef(lasso_model)
+preds_lasso <- predict(lasso_model, X_test)
+regr.eval(trues = Y_test, preds = preds_lasso)
+
+
+#Ridge Regression
+
+cv_ridge <- cv.glmnet(X_train, Y_train, alpha = 0, type.measure = "mse", nfolds = 4)
+plot(cv_ridge)
+plot(cv_ridge$glmnet.fit, xvar="lambda", label=TRUE)
+print(cv_ridge$lambda.min)
+coef(cv_ridge)
+ridge_model <- glmnet(X_train, Y_train, lambda = cv_ridge$lambda.min, alpha = 0)
+coef(ridge_model)
+preds_ridge <- predict(ridge_model, X_test)
+regr.eval(trues = Y_test, preds = preds_ridge)
+
+
+
+
+
+```
+
+
+    
+
+
+    
+
+
+
+
+
+
+
+
